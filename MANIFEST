@@ -1,0 +1,9 @@
+Changes
+lib/DR/Template/Parser.pm
+lib/DR/Template.pm
+Makefile.PL
+MANIFEST
+README
+t/010-xs.t
+Template.rl
+Template.xs

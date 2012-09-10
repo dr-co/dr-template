@@ -1,0 +1,6 @@
+Revision history for Perl extension DR::Template.
+
+0.01  Mon Sep 10 21:30:19 2012
+	- original version; created by h2xs 1.23 with options
+		-n DR::Template
+
