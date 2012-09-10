@@ -43,50 +43,53 @@ my @tests = (
         parsed  => '$_TPL->insert_text("a}bc");'
     },
     {
-        text    => '<%= 1 + 1 %>',
-        parsed  => '$_TPL->insert_qtext( 1 + 1 );'
+        text    => '<%= 1 + 2 %>',
+        parsed  => '$_TPL->insert_qtext( 1 + 2 );'
     },
     {
-        text    => 'a%<%= 1 + 1 %>%',
+        text    => 'a%<%= 3 + 4 %>%',
         parsed  => '$_TPL->insert_text("a%");'
-            . '$_TPL->insert_qtext( 1 + 1 );$_TPL->insert_text("%");'
+            . '$_TPL->insert_qtext( 3 + 4 );$_TPL->insert_text("%");'
     },
     {
-        text    => '<%== 2 + 3 %>',
-        parsed  => '$_TPL->insert_text( 2 + 3 );'
+        text    => '<%== 5 + 6 %>',
+        parsed  => '$_TPL->insert_text( 5 + 6 );'
     },
     {
-        text    => '<% 3 + 4; %>',
-        parsed  => ' 3 + 4; '
+        text    => '<% 7 + 8; %>',
+        parsed  => ' 7 + 8; '
     },
     {
-        text    => "% 3 + 4;",
-        parsed  => ' 3 + 4;'
+        text    => "% 9 + 10;",
+        parsed  => ' 9 + 10;'
     },
     {
-        text    => "%= 3 + 4;",
-        parsed  => '$_TPL->insert_qtext( 3 + 4);'
+        text    => "%= 11 + 12;",
+        parsed  => '$_TPL->insert_qtext( 11 + 12);'
     },
     {
-        text    => "%= 3 + 4 ",
-        parsed  => '$_TPL->insert_qtext( 3 + 4 );'
+        text    => "%= 13 + 14 ",
+        parsed  => '$_TPL->insert_qtext( 13 + 14 );'
     },
     {
-        text    => "%= 3 + 4\n%= 1 % 2\naa\n",
-        parsed  => "\$_TPL->insert_qtext( 3 + 4\n);"
-            . "\$_TPL->insert_qtext( 1 % 2\n);"
-            . "\$_TPL->insert_text(\"aa\n\");"
+        text    => "%= 15 + 16\n%= 17 % 18\naa\n",
+        parsed  => "\$_TPL->insert_qtext( 15 + 16);"
+            . "\$_TPL->insert_text(\"\n\");"
+            . "\$_TPL->insert_qtext( 17 % 18);"
+            . "\$_TPL->insert_text(\"\na\");"
+            . "\$_TPL->insert_text(\"a\");\$_TPL->insert_text(\"\n\");"
     },
     {
-        text    => "<%= 1 + 1 %>% 3 + 4;",
+        text    => "<%= 19 + 20 %>% 21 + 22;",
         parsed  =>
-            '$_TPL->insert_qtext( 1 + 1 );$_TPL->insert_text("% 3 + 4;");'
+            '$_TPL->insert_qtext( 19 + 20 );$_TPL->insert_text("% 21 + 22;");'
     },
 );
 
 for (@tests) {
     my $res = eval { DR::Template::Parser::_parse($_->{text}) };
     ok !$@, "There was no errors " . $@ || '';
+    diag "=======\n", $_->{text} unless
     cmp_ok $res, 'eq', $_->{parsed}, $_->{name} || 'result is fine';
 
 }

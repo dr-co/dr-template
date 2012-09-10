@@ -5,13 +5,13 @@ use warnings;
 package DR::Template::Parser;
 
 require DR::Template;
-use Data::Dumper;
+# use Data::Dumper;
 
-local $Data::Dumper::Indent = 1;
-local $Data::Dumper::Terse = 1;
-local $Data::Dumper::Useqq = 1;
-local $Data::Dumper::Deepcopy = 1;
-local $Data::Dumper::Maxdepth = 0;
+# local $Data::Dumper::Indent = 1;
+# local $Data::Dumper::Terse = 1;
+# local $Data::Dumper::Useqq = 1;
+# local $Data::Dumper::Deepcopy = 1;
+# local $Data::Dumper::Maxdepth = 0;
 
 
 sub _parse {
@@ -21,7 +21,7 @@ sub _parse {
     my $res = '';
 
 
-    DR::Template::_tpl_transform($tpl, {
+    DR::Template::_tpl_transform("\n" .$tpl, {
         code_cb => sub {
             my ($code) = @_;
 #             warn Dumper { code => $code };

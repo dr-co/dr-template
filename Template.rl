@@ -5,11 +5,25 @@
 #include <stdio.h>
 
 
-static void _cb_call(const char *key, const char *data, STRLEN len, SV *cbl) {
+static void
+_cb_call(const char *key, const char *data, STRLEN len, SV *cbl, unsigned *cnt)
+{
     
 
     if (!len)
         return;
+    
+
+    if (!*cnt) {
+        data++;
+        len--;
+    }
+
+    *cnt = *cnt + 1;
+
+    if (!len)
+        return;
+
     size_t keylen = strlen(key);
     HV * hcbl = (HV *)SvRV(cbl);
 
@@ -48,13 +62,14 @@ static unsigned _transform(SV *tpl, SV *cbl) {
     p = SvPV(tpl, len);
     pe = p + len;
     unsigned tokens = 0;
+    int top = 0;
+    int stack[5];
 
     %%{
         machine template;
 
         action mline_code {
-            _cb_call("code_cb", ts + 2, te - ts - 4, cbl);
-            tokens++;
+            _cb_call("code_cb", ts + 2, te - ts - 4, cbl, &tokens);
         }
         
         action line_code {
@@ -63,26 +78,44 @@ static unsigned _transform(SV *tpl, SV *cbl) {
                 if (*bc != '%')
                     continue;
                 if (bc > ts) {
-                    _cb_call("text_cb", ts, bc - ts, cbl);
-                    tokens++;
+                    _cb_call("text_cb", ts, bc - ts, cbl, &tokens);
                 }
-                _cb_call("code_cb", bc + 1, te - bc - 1, cbl);
-                tokens++;
+                _cb_call("code_cb", bc + 1, te - bc - 1, cbl, &tokens);
                 break;
             }
         }
 
         action text {
-            _cb_call("text_cb", ts, te - ts, cbl);
-            tokens++;
+            if (!tokens) {
+                const char *bc;
+                for (bc = ts; bc < te; bc++) {
+                    if (*bc == ' ')
+                        continue;
+                    if (*bc == '\t')
+                        continue;
+                    if (*bc != '%')
+                        break;
+                    
+                    if (bc > ts) {
+                        _cb_call("text_cb", ts, bc - ts, cbl, &tokens);
+                    }
+                    _cb_call("code_cb", bc + 1, te - bc - 1, cbl, &tokens);
+                    break;
+                }
+                if (!tokens)
+                    _cb_call("text_cb", ts, te - ts, cbl, &tokens);
+
+            } else {
+                _cb_call("text_cb", ts, te - ts, cbl, &tokens);
+            }
         }
 
-        text = (
+        text_old = (
             (
                 (
                     ([^<%\n])*
                     (
-                        ("<"  [^%]) | ("\n"  [ \t]* [^%<])
+                        ("<"  [^%]) | ("\n"  space* [^%<])
                     )*
                 )
                 |
@@ -90,7 +123,7 @@ static unsigned _transform(SV *tpl, SV *cbl) {
                     ([^<%\n])+
                     (
                             ("<"  [^%])
-                        |   ("\n"  [ \t]* [^<%])
+                        |   ("\n"  space* [^<%])
                         |   "%"
                         |   ("<%%")
                     )*
@@ -98,15 +131,36 @@ static unsigned _transform(SV *tpl, SV *cbl) {
             )
         );
 
-        line_code   =  ([ \t]* "%" [^\n]* "\n");
-        amline_code =  ("<%" ([^%]* ("%"[^>])?)* "%>");
+        text1       =  ([^<%\n]+);
+        text2       =  ("\n" space* [^<%]);
+        text3       =  ("<" [^%\n]);
+        text4       =  ([^\n<] "%");
+        text5       =  ("%");
+
+
+
+        
         mline_code  =  ("<%" ([^%]+ ("%" [^>]  [^%]*)?)+ "%>");
+        line_code   =  ("\n" space* "%" [^\n]*);
+
+
+
+        #line_code   =  ("\n" space* "%" [^\n]*);
+        #fline_code  =  ([ \t]* "%" [^\n]*);
+        #amline_code =  ("<%" ([^%]* ("%" [^>])?)* "%>");
+        #mline_code  =  ("<%" ([^%]+ ("%" [^>]  [^%]*)?)+ "%>");
         
 
         main := |*
-            text        => text;
+#            fline_code  => first_line_code;
+            text1       => text;
+            text2       => text;
+            text3       => text;
+            text4       => text;
+            text5       => text;
             mline_code  => mline_code;
             line_code   => line_code;
+
         *|;
         write data;
         write init;
@@ -116,6 +170,7 @@ static unsigned _transform(SV *tpl, SV *cbl) {
 
     /* unparsed tail: may be text/may be codeline */
     if (ts && ts < pe) {
+        printf("tail: '%.*s'\n", pe - ts, ts);
         const char *bc;
         if (!tokens) {
             for (bc = ts; bc < pe; bc++) {
@@ -124,9 +179,9 @@ static unsigned _transform(SV *tpl, SV *cbl) {
                 if (*bc == '\t')
                     continue;
                 if (*bc == '%') {
-                    _cb_call("text_cb", ts, bc - ts, cbl);
-                    _cb_call("code_cb", bc + 1, pe - bc - 1, cbl);
-                    return 2;
+                    _cb_call("text_cb", ts, bc - ts, cbl, &tokens);
+                    _cb_call("code_cb", bc + 1, pe - bc - 1, cbl, &tokens);
+                    return tokens;
                 }
             }
         }
@@ -134,8 +189,7 @@ static unsigned _transform(SV *tpl, SV *cbl) {
             if (*bc != '\n')
                 continue;
             bc++;
-            _cb_call("text_cb", ts, bc - ts, cbl);
-            tokens++;
+            _cb_call("text_cb", ts, bc - ts, cbl, &tokens);
 
             for (ts = bc; bc < pe; bc++) {
                 if (*bc == ' ')
@@ -143,16 +197,15 @@ static unsigned _transform(SV *tpl, SV *cbl) {
                 if (*bc == '\t')
                     continue;
                 if (*bc == '%') {
-                    _cb_call("text_cb", ts, bc - ts, cbl);
-                    _cb_call("code_cb", bc + 1, pe - bc - 1, cbl);
-                    return 3;
+                    _cb_call("text_cb", ts, bc - ts, cbl, &tokens);
+                    _cb_call("code_cb", bc + 1, pe - bc - 1, cbl, &tokens);
+                    return tokens;
                 }
             }
             break;
         }
 
-        _cb_call("text_cb", ts, pe - ts, cbl);
-        tokens++;
+        _cb_call("text_cb", ts, pe - ts, cbl, &tokens);
     }
 
     return tokens;
